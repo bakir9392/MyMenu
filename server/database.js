@@ -8,11 +8,11 @@ const { config, setting } = require('./config');
 // Les dates sont stockées en UTC ; les regroupements par jour / heure se font dans le fuseau du restaurant.
 
 const pool = mysql.createPool({
-  host: setting('DB_HOST', '127.0.0.1'),
+  host: setting('Host') || setting('DB_HOST', '127.0.0.1'),
   port: Number(setting('DB_PORT', 3306)),
   database: setting('DB_NAME', 'menu_magique'),
-  user: setting('DB_USER', 'menu_magique'),
-  password: setting('DB_PASSWORD', ''),
+  user: setting('User') || setting('DB_USER', 'menu_magique'),
+  password: setting('Password') || setting('DB_PASSWORD', ''),
   charset: 'utf8mb4',
   timezone: 'Z',
   dateStrings: true, // dates renvoyées comme "AAAA-MM-JJ HH:MM:SS" (UTC), format attendu par les interfaces
