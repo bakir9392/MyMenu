@@ -1,0 +1,15 @@
+{
+  "name": "menu-magique",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Menu Magique : un serveur (server/) et une application web (web/) pour le menu client, la caisse et l'admin",
+  "scripts": {
+    "install:all": "npm install && npm --prefix server install && npm --prefix web install",
+    "dev": "concurrently -k -n server,web -c blue,magenta \"npm --prefix server run dev\" \"npm --prefix web run dev\"",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix server start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

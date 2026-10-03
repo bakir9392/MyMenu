@@ -1,0 +1,15 @@
+{
+  "appId": "app.lovable.68ab170919fd4f4b904e8797e6a9029d",
+  "appName": "menu-magique-client",
+  "webDir": "dist",
+  "server": {
+    "url": "https://68ab1709-19fd-4f4b-904e-8797e6a9029d.lovableproject.com?forceHideBadge=true",
+    "cleartext": true
+  },
+  "plugins": {
+    "StatusBar": {
+      "backgroundColor": "#d2691e",
+      "style": "LIGHT"
+    }
+  }
+}
