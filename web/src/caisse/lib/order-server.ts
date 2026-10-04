@@ -53,7 +53,7 @@ export async function orderApi<T>(path: string, init?: RequestInit): Promise<T> 
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body.success === false) {
-    throw new Error(body.error || `HTTP ${response.status}`);
+    throw Object.assign(new Error(body.error || `HTTP ${response.status}`), { code: body.code as string | undefined, data: body.data });
   }
   return body.data as T;
 }

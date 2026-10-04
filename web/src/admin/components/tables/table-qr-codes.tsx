@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileArchive, Plus, Printer, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { DoorOpen, Download, FileArchive, Plus, Printer, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { orderApi, RestaurantTable } from "@/lib/order-server";
 import {
   downloadAllZip, downloadPng, downloadSvg, PRINT_FORMATS, PrintFormat, printQrSheet, qrPngDataUrl,
@@ -239,6 +239,22 @@ export function TableQrCodes({ notify }: TableQrCodesProps) {
     run(() => orderApi(`/tables/${encodeURIComponent(table.number)}/regenerate`, { method: "POST" }), t("tables.regenerated"));
   };
 
+  // Client parti : la visite se termine ; s'il reste des commandes non payees, on demande confirmation avant de les annuler
+  const release = async (table: RestaurantTable) => {
+    if (!confirm(t("tables.confirmRelease", { number: table.number }))) return;
+    const path = `/tables/${encodeURIComponent(table.number)}/release`;
+    await run(async () => {
+      try {
+        await orderApi(path, { method: "POST", body: JSON.stringify({ force: false }) });
+      } catch (e) {
+        const failure = e as Error & { code?: string; data?: { activeOrders?: number } };
+        if (failure.code !== "UNPAID_ORDERS") throw e;
+        if (!confirm(t("tables.confirmReleaseUnpaid", { number: table.number, count: failure.data?.activeOrders ?? 0 }))) return;
+        await orderApi(path, { method: "POST", body: JSON.stringify({ force: true }) });
+      }
+    }, t("tables.released", { number: table.number }));
+  };
+
   const remove = (table: RestaurantTable) => {
     if (!confirm(t("tables.confirmDelete", { number: table.number }))) return;
     run(() => orderApi(`/tables/${encodeURIComponent(table.number)}`, { method: "DELETE" }), t("tables.deleted"));
@@ -419,6 +435,12 @@ export function TableQrCodes({ notify }: TableQrCodesProps) {
                   </Button>
                 </div>
                 <TableVatField table={table} placeholder={defaultRatePlaceholder} onSave={saveTableRate} />
+                {table.has_open_session && (
+                  <Button variant="outline" size="sm" className="w-full border-orange-400 text-orange-600 hover:bg-orange-50 hover:text-orange-700" onClick={() => release(table)}>
+                    <DoorOpen className="w-4 h-4 me-1" />
+                    {t("tables.release")}
+                  </Button>
+                )}
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => regenerate(table)}>
                     <RotateCcw className="w-4 h-4 me-1" />

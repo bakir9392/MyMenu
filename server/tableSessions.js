@@ -5,7 +5,7 @@ const { run, get, all } = require('./database');
 // par son jeton, qui est secret et aléatoire : il retrouve à lui seul le restaurant et la table.
 
 // Une session sans activité depuis ce délai est considérée terminée (client parti sans payer, oubli...)
-const SESSION_IDLE_HOURS = 3;
+const SESSION_IDLE_HOURS = 1;
 
 const newToken = (bytes) => crypto.randomBytes(bytes).toString('base64url');
 

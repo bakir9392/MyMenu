@@ -27,6 +27,12 @@ export interface RestaurantSettings {
   service_value: number;
   /** Chez un client : TVA propre à sa table (déjà appliquée à tax_enabled / tax_rate) ; null = taux du restaurant */
   table_tax_rate?: number | null;
+  /** Position du restaurant (reglages admin, texte ; vide = pas de restriction). Jamais envoyee aux clients */
+  location_lat?: string;
+  location_lng?: string;
+  /** Chez un client : sa position sera demandee a la commande, qui doit se faire a moins de order_max_distance_m metres */
+  location_required?: boolean;
+  order_max_distance_m?: number;
 }
 
 export interface BillBreakdown {

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Coins, Percent, Receipt, Save, Store } from "lucide-react";
+import { Coins, MapPin, Percent, Receipt, Save, Store } from "lucide-react";
 import { breakdownLines, computeBill, CURRENCY_CODES, Currency, fetchSettings, includedTaxNote, RestaurantSettings } from "@/lib/bill";
 import { LicenseCard } from "@/components/settings/license-card";
 import { useI18n } from "../../../shared/i18n";
@@ -53,6 +53,20 @@ export function SettingsPage({ notify }: SettingsPageProps) {
     }
     return Array.from(zones);
   }, [form?.timezone]);
+
+  // Position du restaurant : les clients doivent en etre proches pour commander
+  const useMyLocation = () => {
+    if (!navigator.geolocation) return notify(t("settings.locationDenied"), true);
+    navigator.geolocation.getCurrentPosition(
+      (result) => {
+        set("location_lat", result.coords.latitude.toFixed(6));
+        set("location_lng", result.coords.longitude.toFixed(6));
+        notify(t("settings.locationSet"));
+      },
+      () => notify(t("settings.locationDenied"), true),
+      { enableHighAccuracy: true, timeout: 15000 }
+    );
+  };
 
   const save = async () => {
     if (!form) return;
@@ -120,6 +134,39 @@ export function SettingsPage({ notify }: SettingsPageProps) {
               <div className="space-y-2 md:col-span-2">
                 <Label>{t("settings.footer")}</Label>
                 <Textarea rows={2} value={form.receipt_footer} onChange={(e) => set("receipt_footer", e.target.value)} placeholder={t("receipt.thanks")} />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Position : commandes reservees aux clients presents au restaurant */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2"><MapPin className="w-5 h-5 text-primary" />{t("settings.location")}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">{t("settings.locationHint", { meters: form.order_max_distance_m ?? 300 })}</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>{t("settings.latitude")}</Label>
+                  <Input dir="ltr" inputMode="decimal" className="text-start" value={form.location_lat ?? ""} onChange={(e) => set("location_lat", e.target.value)} placeholder="36.752887" />
+                  {fieldError("location_lat")}
+                </div>
+                <div className="space-y-2">
+                  <Label>{t("settings.longitude")}</Label>
+                  <Input dir="ltr" inputMode="decimal" className="text-start" value={form.location_lng ?? ""} onChange={(e) => set("location_lng", e.target.value)} placeholder="3.042048" />
+                  {fieldError("location_lng")}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" onClick={useMyLocation}>
+                  <MapPin className="w-4 h-4 me-2" />
+                  {t("settings.useMyLocation")}
+                </Button>
+                {(form.location_lat || form.location_lng) && (
+                  <Button type="button" variant="ghost" onClick={() => { set("location_lat", ""); set("location_lng", ""); }}>
+                    {t("settings.clearLocation")}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>

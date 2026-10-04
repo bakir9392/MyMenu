@@ -18,6 +18,7 @@ const invoices = require('./invoices');
 const complaints = require('./complaints');
 const reports = require('./reports');
 const settings = require('./settings');
+const geofence = require('./geofence');
 const { authenticate, requireStaff, requireAdmin, resolveAuth } = require('./auth');
 const { tenant } = require('./access');
 const authRoutes = require('./routes/auth');
@@ -99,7 +100,12 @@ app.use('/api/auth', authRoutes);
 app.get('/api/settings', tenant, async (req, res, next) => {
   try {
     const data = await settings.getSettings(req.rid);
+    data.order_max_distance_m = geofence.MAX_DISTANCE_M;
     if (req.auth) return res.json({ success: true, data });
+    // Client : il sait seulement si sa position sera demandee ; le serveur reste seul juge de la distance
+    data.location_required = geofence.restaurantPoint(data) !== null;
+    delete data.location_lat;
+    delete data.location_lng;
     // Client : la TVA de sa table remplace celle du restaurant, ses additions se calculent donc avec les mêmes paramètres
     const tableRate = await tableSessions.getTableTaxRate(req.rid, req.customer.tableNumber);
     if (tableRate !== null) Object.assign(data, { tax_enabled: tableRate > 0, tax_rate: tableRate });
@@ -245,6 +251,28 @@ app.patch('/api/complaints/:id', requireStaff, async (req, res, next) => {
 
 app.use('/api', ordersRoutes);
 
+// Liberer une table : le client est parti sans payer (ou n'a rien commande). La visite se termine, le client devra
+// rescanner le QR code. S'il reste des commandes non payees, elles sont annulees : l'appelant doit alors confirmer (force: true).
+app.post('/api/tables/:number/release', requireStaff, async (req, res, next) => {
+  try {
+    const { restaurantId } = req.auth;
+    const tableNumber = String(req.params.number);
+    const session = await tableSessions.getOpenSessionForTable(restaurantId, tableNumber);
+    if (!session) return res.json({ success: true, data: { released: false, cancelledOrders: 0 } });
+    const unpaid = await orders.activeOrdersOfSession(session.token);
+    if (unpaid.length > 0 && !(req.body && req.body.force === true)) {
+      return res.status(409).json({ success: false, error: 'The table has unpaid orders', code: 'UNPAID_ORDERS', data: { activeOrders: unpaid.length } });
+    }
+    console.log(`🔓 Table ${tableNumber} released by ${req.auth.name || 'staff'} (restaurant ${restaurantId}, ${unpaid.length} unpaid order(s) cancelled)`);
+    for (const order of unpaid) await setOrderStatus(restaurantId, order.id, 'cancelled');
+    await finalizeVisitIfPaid(restaurantId, session.token, session.tableNumber, req.auth.name || null);
+    emitToStaff(restaurantId, 'table-released', { tableNumber });
+    res.json({ success: true, data: { released: true, cancelledOrders: unpaid.length } });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.use('/api', (req, res) => {
   res.status(404).json({ success: false, error: 'Endpoint not found', message: `The requested endpoint ${req.originalUrl} does not exist` });
 });
@@ -359,6 +387,13 @@ io.on('connection', (socket) => {
       return reply({ ok: false, reason: 'server_error' });
     }
     if (!session) return reply({ ok: false, reason: 'session_closed' });
+    try {
+      const where = geofence.checkOrderPosition(await settings.getSettings(session.restaurantId), rawOrder && rawOrder.position);
+      if (where !== 'ok') return reply({ ok: false, reason: where });
+    } catch (error) {
+      console.error('new-order position check error:', error);
+      return reply({ ok: false, reason: 'server_error' });
+    }
     await tableSessions.touchSession(session.token).catch(() => {});
 
     let result;

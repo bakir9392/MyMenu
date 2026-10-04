@@ -11,7 +11,7 @@ interface OrderStatusUpdate {
 
 export interface SocketReply {
   ok: boolean;
-  reason?: 'session_closed' | 'invalid_item' | 'empty_order' | 'server_error' | 'not_connected' | 'timeout';
+  reason?: 'session_closed' | 'invalid_item' | 'empty_order' | 'too_far' | 'location_required' | 'server_error' | 'not_connected' | 'timeout';
   tableNumber?: string;
 }
 

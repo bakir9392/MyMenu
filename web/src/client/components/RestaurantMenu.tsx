@@ -16,6 +16,7 @@ import MyOrdersPage, { SessionOrder } from "./MyOrdersPage";
 import CartPage from "./CartPage";
 import NotificationCenter, { AppNotification } from "./NotificationCenter";
 import { playSound } from "@/lib/sounds";
+import { getCurrentPosition } from "@/lib/location";
 import restaurantHero from "@/assets/restaurant-hero.jpg";
 
 export interface MenuItem {
@@ -344,6 +345,21 @@ const RestaurantMenu = () => {
       return false;
     }
 
+    // Commande reservee aux clients presents au restaurant : la position est envoyee, le serveur controle la distance
+    let position;
+    if (settings?.location_required) {
+      const located = await getCurrentPosition();
+      if ("error" in located) {
+        toast({
+          title: t("client.toast.locationTitle"),
+          description: t(located.error === "denied" ? "client.toast.locationDenied" : "client.toast.locationUnavailable"),
+          variant: "destructive"
+        });
+        return false;
+      }
+      position = located.position;
+    }
+
     // Créer un ID unique pour cette commande
     const orderId = `order_${tableNumber}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -352,6 +368,7 @@ const RestaurantMenu = () => {
       id: orderId,
       sessionToken: tableSession.token,
       tableNumber,
+      position,
       note,
       items: cart.map(item => ({
         id: item.id,
@@ -379,6 +396,14 @@ const RestaurantMenu = () => {
         toast({
           title: t("client.toast.invalidItemTitle"),
           description: t("client.toast.invalidItemText"),
+          variant: "destructive"
+        });
+      } else if (reply.reason === 'too_far' || reply.reason === 'location_required') {
+        toast({
+          title: t(reply.reason === 'too_far' ? "client.toast.tooFarTitle" : "client.toast.locationTitle"),
+          description: reply.reason === 'too_far'
+            ? t("client.toast.tooFarText", { meters: settings?.order_max_distance_m ?? 300 })
+            : t("client.toast.locationDenied"),
           variant: "destructive"
         });
       } else if (reply.reason === 'empty_order') {

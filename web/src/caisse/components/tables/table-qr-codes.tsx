@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, FileArchive, Plus, Printer, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
+import { DoorOpen, Download, FileArchive, Plus, Printer, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { orderApi, RestaurantTable } from "@/lib/order-server";
 import {
   downloadAllZip, downloadPng, downloadSvg, PRINT_FORMATS, PrintFormat, printQrSheet, qrPngDataUrl,
@@ -130,6 +130,22 @@ export function TableQrCodes({ notify }: TableQrCodesProps) {
   const regenerate = (table: RestaurantTable) => {
     if (!confirm(t("caisse.qr.regenerateConfirm", { number: table.number }))) return;
     run(() => orderApi(`/tables/${encodeURIComponent(table.number)}/regenerate`, { method: "POST" }), t("caisse.qr.regenerated"));
+  };
+
+  // Client parti : la visite se termine ; s'il reste des commandes non payees, on demande confirmation avant de les annuler
+  const release = async (table: RestaurantTable) => {
+    if (!confirm(t("caisse.qr.releaseConfirm", { number: table.number }))) return;
+    const path = `/tables/${encodeURIComponent(table.number)}/release`;
+    await run(async () => {
+      try {
+        await orderApi(path, { method: "POST", body: JSON.stringify({ force: false }) });
+      } catch (e) {
+        const failure = e as Error & { code?: string; data?: { activeOrders?: number } };
+        if (failure.code !== "UNPAID_ORDERS") throw e;
+        if (!confirm(t("caisse.qr.releaseUnpaid", { number: table.number, count: failure.data?.activeOrders ?? 0 }))) return;
+        await orderApi(path, { method: "POST", body: JSON.stringify({ force: true }) });
+      }
+    }, t("caisse.qr.released", { number: table.number }));
   };
 
   const remove = (table: RestaurantTable) => {
@@ -296,6 +312,12 @@ export function TableQrCodes({ notify }: TableQrCodesProps) {
                     <Printer className="w-3 h-3" />
                   </Button>
                 </div>
+                {table.has_open_session && (
+                  <Button variant="outline" size="sm" className="w-full border-orange-400 text-orange-600 hover:bg-orange-50 hover:text-orange-700" onClick={() => release(table)}>
+                    <DoorOpen className="w-4 h-4 me-1" />
+                    {t("caisse.qr.release")}
+                  </Button>
+                )}
                 <div className="flex gap-2">
                   <Button variant="ghost" size="sm" className="flex-1" onClick={() => regenerate(table)}>
                     <RotateCcw className="w-4 h-4 me-1" />

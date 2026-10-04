@@ -121,10 +121,12 @@ export const Dashboard = () => {
     socket.on("order-notification", onNewOrder);
     socket.on("order-status-changed", onStatusChanged);
     socket.on("table-opened", onTableOpened);
+    socket.on("table-released", onStatusChanged);
     return () => {
       socket.off("order-notification", onNewOrder);
       socket.off("order-status-changed", onStatusChanged);
       socket.off("table-opened", onTableOpened);
+      socket.off("table-released", onStatusChanged);
     };
   }, [socket, loadData, t]);
 
@@ -169,6 +171,11 @@ export const Dashboard = () => {
     const ids = new Set(targets.map(o => o.id));
     setOrders(prev => prev.map(o => (ids.has(o.id) ? { ...o, status, updatedAt: new Date() } : o)));
     targets.forEach(o => updateOrderStatus({ orderId: o.id, tableNumber: tableNumberOf(o), status }));
+  };
+
+  const handleReleaseTable = async (table: Table, hasOrder: boolean) => {
+    await orderApi(`/tables/${encodeURIComponent(table.number)}/release`, { method: "POST", body: JSON.stringify({ force: hasOrder }) });
+    await loadData();
   };
 
   const handleTableSelect = (table: Table) => {
@@ -332,6 +339,7 @@ export const Dashboard = () => {
         onProcessPayment={handleProcessPayment}
         onDeleteOrder={handleDeleteOrder}
         onSendMessage={handleSendMessage}
+        onReleaseTable={handleReleaseTable}
         onPrintBill={handlePrintBill}
       />
 

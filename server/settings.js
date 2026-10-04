@@ -16,6 +16,8 @@ const DEFAULTS = {
   tax_mode: 'included', // 'included' = prix TTC (TVA comprise) | 'added' = TVA ajoutée au total
   service_type: 'none', // 'none' | 'fixed' = montant par table | 'percent' = % de l'addition
   service_value: 0,
+  location_lat: '', // position du restaurant : les clients doivent en etre a moins de 300 m pour commander
+  location_lng: '',
 };
 
 const cache = new Map(); // restaurant -> paramètres
@@ -60,6 +62,19 @@ async function updateSettings(restaurantId, input) {
   const timezone = input && input.timezone !== undefined ? String(input.timezone).trim() : null;
   if (timezone !== null && !isValidTimezone(timezone)) errors.timezone = 'Unknown time zone';
 
+  for (const key of ['location_lat', 'location_lng']) {
+    if (!(key in next)) continue;
+    const normalized = String(next[key]).replace(',', '.');
+    const limit = key === 'location_lat' ? 90 : 180;
+    if (normalized === '') next[key] = '';
+    else if (!Number.isFinite(Number(normalized)) || Math.abs(Number(normalized)) > limit) errors[key] = 'Invalid coordinate';
+    else next[key] = String(Number(normalized));
+  }
+  if (!errors.location_lat && !errors.location_lng && ('location_lat' in next || 'location_lng' in next)) {
+    const lat = 'location_lat' in next ? next.location_lat : current.location_lat;
+    const lng = 'location_lng' in next ? next.location_lng : current.location_lng;
+    if ((lat === '') !== (lng === '')) errors[lat === '' ? 'location_lat' : 'location_lng'] = 'Latitude and longitude go together';
+  }
   if ('restaurant_name' in next && !next.restaurant_name) errors.restaurant_name = 'Restaurant name is required';
   if ('currency' in next && !CURRENCIES.includes(next.currency)) errors.currency = 'Unsupported currency (EUR, USD or DZD)';
   if ('tax_rate' in next && next.tax_rate > 100) errors.tax_rate = 'The rate must be between 0 and 100';

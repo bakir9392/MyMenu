@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Table, Order } from "@/types";
-import { CheckCircle, Banknote, Printer, Receipt, ChefHat, Trash2, MessageSquare } from "lucide-react";
+import { CheckCircle, Banknote, Printer, Receipt, ChefHat, Trash2, MessageSquare, DoorOpen } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { breakdownLines, computeBill, includedTaxNote } from "../../../shared/bill";
 import { PaperFormat } from "../../../shared/receipt";
@@ -24,6 +24,8 @@ interface TableManagementModalProps {
   onDeleteOrder: (orderId: string) => void;
   /** Ouvre la fenêtre de message au client de la table (à tout moment) */
   onSendMessage: (table: Table) => void;
+  /** Libere la table (client parti) : la visite se termine, les commandes non payees sont annulees */
+  onReleaseTable: (table: Table, hasOrder: boolean) => Promise<void>;
   /** Imprime l'addition en cours de la table, sur le format de papier choisi */
   onPrintBill: (table: Table, order: Order, paper: PaperFormat) => void;
 }
@@ -38,6 +40,7 @@ export const TableManagementModal = ({
   onProcessPayment,
   onDeleteOrder,
   onSendMessage,
+  onReleaseTable,
   onPrintBill,
 }: TableManagementModalProps) => {
   const { t } = useI18n();
@@ -46,6 +49,7 @@ export const TableManagementModal = ({
   const [isProcessing, setIsProcessing] = useState(false);
   // Confirmation d'annulation affichée dans la fenêtre (plus de boîte grise du navigateur)
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmRelease, setConfirmRelease] = useState(false);
 
   if (!table) return null;
 
@@ -109,6 +113,23 @@ export const TableManagementModal = ({
       setIsProcessing(false);
     }
   };
+
+  const handleRelease = async () => {
+    setIsProcessing(true);
+    try {
+      await onReleaseTable(table, !!order);
+      toast.success(t("caisse.modal.released", { table: table.number }));
+      setConfirmRelease(false);
+      onClose();
+    } catch (error) {
+      toast.error(t("caisse.modal.releaseFailed"));
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const occupied = table.status === 'occupied';
+  const actionColumns = 1 + (order ? 1 : 0) + (occupied ? 1 : 0);
 
   const getStatusBadge = () => {
     if (!order) {
@@ -253,7 +274,22 @@ export const TableManagementModal = ({
               </div>
             )}
 
-            {confirmCancel && order ? (
+            {confirmRelease ? (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3">
+                <p className="text-sm font-medium text-destructive">
+                  {t(order ? "caisse.modal.releaseConfirmUnpaid" : "caisse.modal.releaseConfirm", { table: table.number })}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="outline" onClick={() => setConfirmRelease(false)} disabled={isProcessing}>
+                    {t("caisse.modal.keep")}
+                  </Button>
+                  <Button variant="destructive" onClick={handleRelease} disabled={isProcessing}>
+                    <DoorOpen className="h-4 w-4 me-1" />
+                    {t("caisse.modal.releaseYes")}
+                  </Button>
+                </div>
+              </div>
+            ) : confirmCancel && order ? (
               <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3">
                 <p className="text-sm font-medium text-destructive">
                   {t("caisse.modal.cancelConfirm", { table: table.number })}
@@ -269,7 +305,7 @@ export const TableManagementModal = ({
                 </div>
               </div>
             ) : (
-              <div className={`grid gap-2 border-t pt-2 ${order ? "grid-cols-2" : "grid-cols-1"}`}>
+              <div className={`grid gap-2 border-t pt-2 ${actionColumns === 3 ? "grid-cols-3" : actionColumns === 2 ? "grid-cols-2" : "grid-cols-1"}`}>
                 <Button
                   variant="ghost"
                   className="text-primary hover:text-primary hover:bg-primary/10"
@@ -286,6 +322,16 @@ export const TableManagementModal = ({
                   >
                     <Trash2 className="h-4 w-4 me-1" />
                     {t("caisse.modal.cancelOrder")}
+                  </Button>
+                )}
+                {occupied && (
+                  <Button
+                    variant="ghost"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => setConfirmRelease(true)}
+                  >
+                    <DoorOpen className="h-4 w-4 me-1" />
+                    {t("caisse.modal.release")}
                   </Button>
                 )}
               </div>
